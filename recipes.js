@@ -23,7 +23,7 @@ const recipeSchema = new Schema(
       type: String,
       default: "https://images.media-allrecipes.com/images/75131.jpg"
     },
-    duration: {type: Number, max: 144},
+    duration: {type: Number},
     creator: String,
     created: { type: Date, default: Date.now }
   },
@@ -38,22 +38,47 @@ const Recipe = mongoose.model("Recipe", recipeSchema);
 // Database connection and queries
 // ----------------------------------------------------------------------------------------------------------
 
-mongoose
-  .connect(
-    "mongodb://localhost/recipeApp",
-    { useNewUrlParser: true }
-  )
-  .then(() => Recipe.insertMany(data))
-  .then(() => Promise.all([updateRigatoni, deleteCarrotCake]))
-  .then(() => mongoose.connection.close())
-  .catch(err => console.error('ERROR IN PROMISE CHAIN', err.message))
+
+const updateRigatoni = Recipe.findOneAndUpdate(
+  { title: 'Rigatoni alla Genovese' }, 
+  { duration: 100 },
+  { runValidators: true, new: true }
+)
+
+const deleteCarrotCake = Recipe.findOneAndDelete(
+  {title: 'Carrot Cake'}
+  );
+
+  
+async function handleRecipes(){
+  try {
+    const allRecipes = await Recipe.insertMany(data);
+    //console.log('Successfully created the recipes', allRecipes)
+    const [rigatoniDoc, carrotCakeDoc] = await Promise.all([updateRigatoni, deleteCarrotCake])
+    //console.log('Successfully updated 1 recipe and deleted 1 recipe', rigatoniDoc, carrotCakeDoc)
+    return [ allRecipes, rigatoniDoc, carrotCakeDoc ]
+  } catch(err) {
+    throw new Error("ERROR handling the recipes :(", err.message)
+  }
+  
+}
+
+function closeConnection (){
+  try {
+    mongoose.connection.close();
+    console.log('connection closed');
+  } catch(err){
+    throw new Error("ERROR closing the connection", err.message)
+  }
+
+}
+
+async function recipeQueries(){
+  mongoose.connect( "mongodb://localhost/recipeApp", { useNewUrlParser: true });
+  const [ allRecipes, rigatoniDoc, carrotCakeDoc ] = await handleRecipes();
+  closeConnection();
+  return [ allRecipes, rigatoniDoc, carrotCakeDoc ]
+}
 
 
-  const updateRigatoni = Recipe.findOneAndUpdate(
-    { title: { $eq: "Rigatoni alla Genovese" } },
-    { $set: { duration: 145 } },
-    { runValidators: true, new: true}
-  )
-
-  const deleteCarrotCake = Recipe.findOneAndDelete({ title: "Carrot Cake" })
-
+recipeQueries()
